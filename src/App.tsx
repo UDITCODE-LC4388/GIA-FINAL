@@ -7,7 +7,9 @@ import Dashboard from "./pages/Dashboard";
 import Verification from "./pages/Verification";
 import NetworkGraph from "./pages/NetworkGraph";
 import Heatmap from "./pages/Heatmap";
-import PlaceholderPage from "./pages/PlaceholderPage";
+import SchemeOptimizer from "./pages/SchemeOptimizer";
+import AuditCertificates from "./pages/AuditCertificates";
+import SystemLogs from "./pages/SystemLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -17,15 +19,22 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter future={{ 
+        v7_startTransition: true, 
+        v7_relativeSplatPath: true,
+        v7_fetcherPersist: true,
+        v7_normalizeFormMethod: true,
+        v7_partialHydration: true,
+        v7_skipActionErrorRevalidation: true
+      }}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/network" element={<NetworkGraph />} />
           <Route path="/heatmap" element={<Heatmap />} />
-          <Route path="/optimizer" element={<PlaceholderPage title="Scheme Optimizer" subtitle="AI-powered scheme allocation optimization engine" />} />
-          <Route path="/certificates" element={<PlaceholderPage title="Audit Certificates" subtitle="Generated verification certificates and compliance documents" />} />
-          <Route path="/logs" element={<PlaceholderPage title="System Logs" subtitle="Audit trail of all system activities and officer actions" />} />
+          <Route path="/optimizer" element={<SchemeOptimizer />} />
+          <Route path="/certificates" element={<AuditCertificates />} />
+          <Route path="/logs" element={<SystemLogs />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

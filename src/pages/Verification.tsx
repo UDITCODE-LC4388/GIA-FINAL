@@ -5,47 +5,72 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { BeneficiaryCard } from "@/components/ui/BeneficiaryCard";
 import { AnomalyItem } from "@/components/ui/AnomalyItem";
 import { FraudRadar } from "@/components/charts/FraudRadar";
+import { jsPDF } from "jspdf";
 
-const mockResult = {
-  name: "Ramesh Kumar Patil",
-  aadhaar: "XXXX-XXXX-0034",
-  dob: "12-03-1978",
-  district: "Belagavi",
-  riskScore: 78,
-  radarData: [
-    { dimension: "Income Consistency", score: 32 },
-    { dimension: "Identity Consistency", score: 85 },
-    { dimension: "Asset Alignment", score: 45 },
-    { dimension: "Scheme Eligibility", score: 28 },
-    { dimension: "Occupation Consistency", score: 60 },
-    { dimension: "Document Authenticity", score: 72 },
-  ],
-  anomalies: [
-    {
-      title: "Income Discrepancy — PM Awas Yojana vs PMFBY",
-      description:
-        "The declared annual household income under PM Awas Yojana (Gramin) is ₹1,42,000, which falls within the Economically Weaker Section bracket. However, the crop insurance premium paid under PMFBY for Kharif 2023 corresponds to a landholding of 4.2 hectares, which is inconsistent with EWS income declarations as per Ministry of Rural Development guidelines (2021 revision).",
-      schemeRefs: ["PM Awas Yojana (G)", "PMFBY Kharif 2023"],
+const getMockResult = (id: string) => {
+  // User specialized overrides
+  const isAADH001 = id.endsWith('001');
+  const isAADH009 = id.endsWith('009');
+  
+  const isHighRisk = isAADH001 ? true : (isAADH009 ? false : (parseInt(id.slice(-1)) % 3 === 0));
+  
+  return {
+    name: isHighRisk ? "Ramesh Kumar Patil" : "Sunitha R. Hegde",
+    aadhaar: `XXXX — XXXX — ${id.slice(-4)}`,
+    dob: isHighRisk ? "12-03-1978" : "24-06-1985",
+    district: isHighRisk ? "Belagavi" : "Mysuru",
+    riskScore: isHighRisk ? 78 : 12,
+    verdict: isHighRisk ? "HIGH RISK" : "ELIGIBLE",
+    occupation: isHighRisk ? "Contractor" : "Farmer",
+    eligibilityScore: isHighRisk ? 42 : 98,
+    fraudDimensions: {
+      identityRisk: isHighRisk ? 85 : 5,
+      incomeRisk: isHighRisk ? 92 : 10,
+      duplicateRisk: isHighRisk ? 70 : 2,
+      addressRisk: isHighRisk ? 40 : 5,
+      schemeHistoryRisk: isHighRisk ? 88 : 8,
     },
-    {
-      title: "Duplicate Bank Account — Cross-beneficiary Match",
-      description:
-        "The bank account number linked to this beneficiary (SBI A/C ending 8834) is also registered under Aadhaar XXXX-XXXX-6712 (Lakshmi R. Gowda, Dharwad district) for PM-KISAN benefit disbursement. This constitutes a potential case of shared account fraud under Section 4.3 of the DBT Anti-Fraud Framework.",
-      schemeRefs: ["PM-KISAN", "DBT Framework Sec 4.3"],
-    },
-    {
-      title: "Occupation Mismatch — NREGA vs PMFBY Enrollment",
-      description:
-        "Beneficiary is registered as an agricultural labourer under NREGA (Job Card KA-BEL-2019-04421), but PMFBY records indicate ownership-based crop insurance enrollment. Agricultural labourers are not eligible for land-owner insurance premiums under the revised PMFBY guidelines issued by the Department of Agriculture, Government of Karnataka (Circular No. AGR/2022/PMFBY/114).",
-      schemeRefs: ["MGNREGA", "PMFBY", "Circular AGR/2022/114"],
-    },
-  ],
+    radarData: [
+      { dimension: "Income Consistency", score: isHighRisk ? 32 : 95 },
+      { dimension: "Identity Consistency", score: isHighRisk ? 85 : 98 },
+      { dimension: "Asset Alignment", score: isHighRisk ? 45 : 90 },
+      { dimension: "Scheme Eligibility", score: isHighRisk ? 28 : 96 },
+      { dimension: "Occupation Consistency", score: isHighRisk ? 60 : 92 },
+      { dimension: "Document Authenticity", score: isHighRisk ? 72 : 99 },
+    ],
+    anomalies: isHighRisk ? [
+      {
+        title: "Income Discrepancy — PM Awas Yojana vs PMFBY",
+        description: "Consistency failure detected between PM Awas (EWS) and landholding records.",
+        schemeRefs: ["PM Awas Yojana (G)", "PMFBY Kharif 2023"],
+      },
+      {
+        title: "Duplicate Bank Account — Cross-beneficiary Match",
+        description: "Bank account ending 8834 linked to multiple Aadhaar profiles.",
+        schemeRefs: ["PM-KISAN", "DBT Framework Sec 4.3"],
+      }
+    ] : [],
+  };
 };
+
+const defaultMock = getMockResult("0000");
 
 export default function Verification() {
   const [aadhaar, setAadhaar] = useState("");
   const [showResult, setShowResult] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentResult, setCurrentResult] = useState(defaultMock);
+  const [history, setHistory] = useState<any[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const steps = [
+    "Fetching beneficiary records from state database...",
+    "Analyzing income tax filings (ITD cross-reference)...",
+    "Verifying bank account ownership (NPCI check)...",
+    "Checking land ownership records (Bhoomi database)...",
+    "Cross-referencing across 12 central/state schemes...",
+    "Finalizing fraud DNA signature...",
+  ];
 
   const formatAadhaar = (val: string) => {
     const digits = val.replace(/\D/g, "").slice(0, 12);
@@ -58,13 +83,100 @@ export default function Verification() {
   };
 
   const handleVerify = () => {
-    if (aadhaar.replace(/\D/g, "").length < 4) return;
+    const rawAadhaar = aadhaar.replace(/\D/g, "");
+    if (rawAadhaar.length < 4) return;
+    
     setLoading(true);
     setShowResult(false);
+    setCurrentStep(0);
+
+    // Simulate multi-step analysis
+    const interval = setInterval(() => {
+      setCurrentStep(prev => {
+        if (prev >= steps.length - 1) {
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 800);
+
     setTimeout(() => {
+      clearInterval(interval);
       setLoading(false);
+      const result = getMockResult(rawAadhaar);
+      setCurrentResult(result);
       setShowResult(true);
-    }, 2000);
+      setHistory(prev => [{
+        aadhaar: rawAadhaar.slice(-4),
+        name: result.name,
+        risk: result.riskScore,
+        time: new Date().toLocaleTimeString(),
+      }, ...prev].slice(0, 5));
+    }, steps.length * 850);
+  };
+
+  const handleExportPDF = () => {
+    if (!currentResult) return;
+    const doc = new jsPDF();
+    const data = currentResult;
+    const verificationId = 'GIA-' + Date.now();
+    const timestamp = new Date().toLocaleString('en-IN');
+    const verdictColor = data.verdict === 'ELIGIBLE' ? [34, 197, 94] : [239, 68, 68];
+
+    // Background
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 297, 'F');
+    doc.setFillColor(verdictColor[0], verdictColor[1], verdictColor[2]);
+    doc.rect(0, 0, 210, 8, 'F');
+
+    // Header
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(15, 15, 180, 30, 3, 3, 'F');
+    doc.setTextColor(6, 182, 212);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GIA SHIELD', 20, 32);
+    doc.setTextColor(148, 163, 184);
+    doc.setFontSize(9);
+    doc.text('Government Beneficiary Verification System', 20, 40);
+    doc.text(`Verification ID: ${verificationId}`, 130, 32);
+    doc.text(`Date: ${timestamp}`, 130, 40);
+
+    // Verdict
+    doc.setFillColor(verdictColor[0], verdictColor[1], verdictColor[2]);
+    doc.roundedRect(15, 52, 180, 20, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.text(`VERDICT: ${data.verdict}`, 105, 65, { align: 'center' });
+
+    // Details Columns
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(15, 80, 85, 70, 3, 3, 'F');
+    doc.setTextColor(6, 182, 212);
+    doc.setFontSize(10);
+    doc.text('BENEFICIARY DETAILS', 20, 92);
+    doc.setTextColor(226, 232, 240);
+    doc.setFontSize(9);
+    doc.text(`Name: ${data.name}`, 20, 103);
+    doc.text(`Aadhaar: ${data.aadhaar}`, 20, 112);
+    doc.text(`District: ${data.district}`, 20, 121);
+    doc.text(`Occupation: ${data.occupation}`, 20, 130);
+    doc.text(`Eligibility Score: ${data.eligibilityScore}/100`, 20, 139);
+
+    doc.setFillColor(30, 41, 59);
+    doc.roundedRect(110, 80, 85, 70, 3, 3, 'F');
+    doc.setTextColor(6, 182, 212);
+    doc.text('FRAUD RISK SCORES', 115, 92);
+    doc.setTextColor(226, 232, 240);
+    const fd = data.fraudDimensions;
+    doc.text(`Identity Risk:      ${fd.identityRisk}/100`, 115, 103);
+    doc.text(`Income Risk:        ${fd.incomeRisk}/100`, 115, 112);
+    doc.text(`Duplicate Risk:     ${fd.duplicateRisk}/100`, 115, 121);
+    doc.text(`Address Risk:       ${fd.addressRisk}/100`, 115, 130);
+    doc.text(`Scheme History:     ${fd.schemeHistoryRisk}/100`, 115, 139);
+
+    doc.save(`GIA-Certificate-${data.name}-${verificationId}.pdf`);
   };
 
   return (
@@ -98,11 +210,27 @@ export default function Verification() {
       </div>
 
       {loading && (
-        <div className="card-gov mb-8">
-          <div className="flex flex-col items-center py-12 gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-navy border-t-transparent animate-spin" />
-            <p className="text-sm text-gov-text-body font-medium">AI Analyzing beneficiary records...</p>
-            <p className="text-xs text-gov-text-body">Cross-referencing across 12 government schemes</p>
+        <div className="card-gov mb-8 bg-gradient-to-br from-card to-gov-off-white">
+          <div className="flex flex-col items-center py-12 gap-6">
+            <div className="relative">
+              <div className="w-16 h-16 rounded-full border-2 border-navy/20 border-t-navy animate-spin" />
+              <Shield className="absolute inset-0 m-auto text-navy opacity-50" size={24} />
+            </div>
+            
+            <div className="text-center space-y-2 max-w-sm">
+              <p className="text-sm font-semibold text-gov-text-heading animate-pulse">
+                {steps[currentStep]}
+              </p>
+              <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
+                <div 
+                  className="h-full bg-navy transition-all duration-500 ease-out"
+                  style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-gov-text-body uppercase tracking-wider font-medium">
+                Step {currentStep + 1} of {steps.length}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -118,20 +246,28 @@ export default function Verification() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             <BeneficiaryCard
-              name={mockResult.name}
-              aadhaar={mockResult.aadhaar}
-              dob={mockResult.dob}
-              district={mockResult.district}
-              riskScore={mockResult.riskScore}
+              name={currentResult.name}
+              aadhaar={currentResult.aadhaar}
+              dob={currentResult.dob}
+              district={currentResult.district}
+              riskScore={currentResult.riskScore}
             />
             <div className="card-gov">
-              <h2 className="section-label mb-2">Fraud DNA Analysis</h2>
-              <FraudRadar data={mockResult.radarData} />
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {mockResult.radarData.map((d) => (
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="section-label">Fraud DNA Analysis</h2>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase font-bold text-navy opacity-50 block">AI Confidence Level</span>
+                  <span className="text-sm font-mono font-bold text-navy">
+                    {currentResult.riskScore > 50 ? "98.4%" : "99.1%"} — SECURE
+                  </span>
+                </div>
+              </div>
+              <FraudRadar data={currentResult.radarData} />
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                {currentResult.radarData.map((d) => (
                   <div
                     key={d.dimension}
-                    className={`text-center px-2 py-1.5 rounded text-xs font-medium ${
+                    className={`text-center px-2 py-2 rounded border transition-all hover:shadow-sm ${
                       d.score >= 70
                         ? "risk-high"
                         : d.score >= 40
@@ -139,7 +275,8 @@ export default function Verification() {
                         : "risk-low"
                     }`}
                   >
-                    {d.score}%
+                    <div className="text-[10px] text-gov-text-body opacity-70 mb-0.5 truncate">{d.dimension}</div>
+                    <div className="text-sm font-bold">{d.score}%</div>
                   </div>
                 ))}
               </div>
@@ -148,22 +285,61 @@ export default function Verification() {
 
           <div className="card-gov mb-4">
             <h2 className="section-label mb-4">AI Detected Anomalies</h2>
-            {mockResult.anomalies.map((anomaly, i) => (
-              <AnomalyItem
-                key={i}
-                index={i + 1}
-                title={anomaly.title}
-                description={anomaly.description}
-                schemeRefs={anomaly.schemeRefs}
-              />
-            ))}
+            <div className="space-y-1">
+              {currentResult.anomalies.length > 0 ? (
+                currentResult.anomalies.map((anomaly, i) => (
+                  <AnomalyItem
+                    key={i}
+                    index={i + 1}
+                    title={anomaly.title}
+                    description={anomaly.description}
+                    schemeRefs={anomaly.schemeRefs}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-8 bg-green-50/50 rounded-lg border border-green-100">
+                   <p className="text-sm font-medium text-green-800">No major anomalies detected</p>
+                   <p className="text-xs text-green-600 mt-1">Cross-referencing returned clear status for this ID.</p>
+                </div>
+              )}
+            </div>
           </div>
 
-          <button className="btn-saffron w-full justify-center">
-            <Download size={16} />
-            Generate Audit Certificate
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleExportPDF}
+              className="btn-saffron flex-1 justify-center shadow-lg hover:shadow-xl transition-all"
+            >
+              <Download size={16} />
+              Generate Audit Certificate
+            </button>
+          </div>
         </>
+      )}
+
+      {history.length > 0 && (
+        <div className="mt-12 bg-white/50 border border-border rounded-lg p-4">
+          <h3 className="section-label mb-4">Recent Session History</h3>
+          <div className="space-y-3">
+            {history.map((h, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${h.risk > 70 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                    <Search size={14} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gov-text-heading">{h.name}</p>
+                    <p className="text-[10px] text-gov-text-body uppercase tracking-tighter">Aadhaar: XXXX-XXXX-{h.aadhaar}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-mono text-gov-text-body">{h.time}</p>
+                  <p className={`text-[10px] font-bold ${h.risk > 70 ? 'text-red-600' : 'text-green-600'}`}>Risk Score: {h.risk}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </AppLayout>
   );

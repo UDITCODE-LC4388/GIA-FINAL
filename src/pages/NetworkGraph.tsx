@@ -1,6 +1,7 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { MetricCard } from "@/components/ui/MetricCard";
+import { FraudNetwork } from "@/components/charts/FraudNetwork";
 import { Users, Link2, Network as NetworkIcon } from "lucide-react";
 
 const nodeTypes = [
@@ -15,17 +16,13 @@ export default function NetworkGraph() {
     <AppLayout>
       <PageHeader
         title="Beneficiary Fraud Network"
-        subtitle="Shared identifiers across scheme applications"
+        subtitle="Shared identifiers across scheme applications (Belagavi Cluster)"
       />
 
       <div className="card-gov mb-4">
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 bg-gov-off-white rounded-md flex items-center justify-center h-[500px] border border-border">
-            <div className="text-center">
-              <NetworkIcon size={48} className="text-border mx-auto mb-3" strokeWidth={1} />
-              <p className="text-sm text-gov-text-body">D3.js Network Graph</p>
-              <p className="text-xs text-gov-text-body mt-1">Interactive visualization will render here</p>
-            </div>
+        <div className="flex flex-col lg:flex-row gap-4 h-[500px]">
+          <div className="flex-1 bg-gov-off-white rounded-md overflow-hidden border border-border">
+            <FraudNetwork />
           </div>
           <div className="lg:w-48 flex flex-col gap-3">
             <h3 className="section-label">Node Types</h3>

@@ -1,6 +1,18 @@
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Map } from "lucide-react";
+import { DistrictGridMap } from "@/components/charts/DistrictGridMap";
+import { Map, AlertCircle } from "lucide-react";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
+
+interface DistrictStats {
+  district: string;
+  rate: number;
+  fraud: number;
+  total: number;
+}
 
 const topDistricts = [
   { name: "Belagavi", score: 87 },
@@ -11,57 +23,126 @@ const topDistricts = [
 ];
 
 export default function Heatmap() {
+  const [districtStats, setDistrictStats] = useState<DistrictStats[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadHeatmapData() {
+      try {
+        setLoading(true);
+        // Fetch all verifications and beneficiaries
+        const [vRes, bRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/verifications?select=aadhaar_hash,verdict`, { 
+            headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } 
+          }),
+          fetch(`${SUPABASE_URL}/rest/v1/beneficiaries?select=aadhaar_hash,district`, { 
+            headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` } 
+          })
+        ]);
+
+        const verifications = await vRes.json();
+        const beneficiaries = await bRes.json();
+
+        // Build mapping
+        const districtMap: Record<string, string> = {};
+        beneficiaries.forEach((b: any) => { districtMap[b.aadhaar_hash] = b.district; });
+
+        // Seed with provided mock data for demo
+        const fraudByDistrict: Record<string, { total: number; fraud: number }> = {
+            'Kalaburagi': { total: 12, fraud: 8 },
+            'Bidar': { total: 9, fraud: 6 },
+            'Raichur': { total: 11, fraud: 7 },
+            'Vijayapura': { total: 8, fraud: 4 },
+            'Belagavi': { total: 15, fraud: 6 },
+            'Dharwad': { total: 10, fraud: 3 },
+            'Mysuru': { total: 14, fraud: 4 },
+            'Bengaluru': { total: 20, fraud: 5 },
+            'Hassan': { total: 7, fraud: 2 }
+        };
+
+        // Overlay real data
+        verifications.forEach((v: any) => {
+          const district = districtMap[v.aadhaar_hash];
+          if (district) {
+            if (!fraudByDistrict[district]) fraudByDistrict[district] = { total: 0, fraud: 0 };
+            fraudByDistrict[district].total++;
+            if (v.verdict !== 'ELIGIBLE') fraudByDistrict[district].fraud++;
+          }
+        });
+
+        const sorted = Object.entries(fraudByDistrict)
+          .map(([district, data]) => ({
+            district,
+            rate: Math.round((data.fraud / data.total) * 100),
+            fraud: data.fraud,
+            total: data.total
+          }))
+          .sort((a, b) => b.rate - a.rate);
+
+        setDistrictStats(sorted);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadHeatmapData();
+  }, []);
+
   return (
     <AppLayout>
       <PageHeader
-        title="District-wise Fraud Density — Karnataka"
-        subtitle="Choropleth visualization of fraud detection density across 30 districts"
+        title="Fraud Density Heatmap"
+        subtitle="Spatio-temporal analysis of scheme exploitation across Karnataka"
       />
 
-      <div className="card-gov">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1 bg-gov-off-white rounded-md flex items-center justify-center h-[520px] border border-border">
-            <div className="text-center">
-              <Map size={48} className="text-border mx-auto mb-3" strokeWidth={1} />
-              <p className="text-sm text-gov-text-body">D3.js Choropleth Map</p>
-              <p className="text-xs text-gov-text-body mt-1">Karnataka district boundaries will render here</p>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+        <div className="card-gov flex flex-col">
+          <h2 className="section-label mb-6">Geographic Distribution (Interactive)</h2>
+          <div className="flex-1 min-h-[400px]">
+             <DistrictGridMap />
           </div>
+        </div>
 
-          <div className="lg:w-64 flex flex-col gap-6">
-            <div>
-              <h3 className="section-label mb-3">Fraud Density Legend</h3>
-              <div className="h-3 rounded-full w-full" style={{
-                background: "linear-gradient(to right, #2D6A4F, #D97706, #C0392B)"
-              }} />
-              <div className="flex justify-between mt-1">
-                <span className="text-[10px] text-gov-text-body">Low</span>
-                <span className="text-[10px] text-gov-text-body">High</span>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="section-label mb-3">Top 5 High-Risk Districts</h3>
-              <div className="flex flex-col gap-3">
-                {topDistricts.map((d, i) => (
-                  <div key={d.name}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gov-text-heading font-medium">{i + 1}. {d.name}</span>
-                      <span className="text-gov-text-body">{d.score}</span>
-                    </div>
-                    <div className="h-2 bg-gov-off-white rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${d.score}%`,
-                          backgroundColor: d.score >= 70 ? "#C0392B" : d.score >= 50 ? "#D97706" : "#2D6A4F",
-                        }}
-                      />
+        <div className="card-gov flex flex-col">
+          <h2 className="section-label mb-6">Fraud Intensity by District</h2>
+          <div className="flex-1 space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {loading ? (
+                <div className="flex items-center justify-center h-full text-gov-text-body text-xs animate-pulse">
+                    Synchronizing District Geo-Data...
+                </div>
+            ) : districtStats.map((item) => {
+              const color = item.rate > 60 ? '#ef4444' : item.rate > 40 ? '#f59e0b' : item.rate > 20 ? '#eab308' : '#22c55e';
+              return (
+                <div key={item.district} className="space-y-1 group">
+                  <div className="flex justify-between text-[11px] font-bold text-gov-text-body uppercase tracking-tight">
+                    <span>{item.district}</span>
+                    <span className="text-gov-text-heading">{item.fraud}/{item.total} cases</span>
+                  </div>
+                  <div className="h-6 bg-navy/5 rounded overflow-hidden flex items-center relative">
+                    <div 
+                        className="h-full transition-all duration-1000 ease-out flex items-center px-3"
+                        style={{ width: `${item.rate}%`, backgroundColor: color, boxShadow: `0 0 10px ${color}44` }}
+                    >
+                        <span className="text-[10px] text-white font-black">{item.rate}%</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="card-gov border-l-4 border-gov-accent">
+        <div className="flex gap-4 items-start">
+          <AlertCircle className="text-gov-accent flex-shrink-0" size={20} />
+          <div>
+            <h3 className="text-sm font-bold text-gov-text-heading mb-1">Audit Advisory</h3>
+            <p className="text-xs text-gov-text-body leading-relaxed">
+              High-intensity clusters detected in **Northern Karnataka** (Kalaburagi, Bidar). Recommended action: 
+              Deploy additional field verification units for PM-KISAN scheme audits in these zones.
+            </p>
           </div>
         </div>
       </div>
