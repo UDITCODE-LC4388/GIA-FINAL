@@ -3,9 +3,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DistrictGridMap } from "@/components/charts/DistrictGridMap";
 import { Map, AlertCircle, Sparkles } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { getAiResponse } from "@/lib/aiService";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
@@ -94,20 +92,11 @@ export default function Heatmap() {
 
     // AI Predictive Geo-Analyst
     setTimeout(async () => {
-      if (!GEMINI_API_KEY) {
-        setAiAnalysis("Geo-Analyst offline. Please configure Gemini API key.");
-        return;
-      }
-      try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const prompt = `Act as a geospatial fraud expert. Analyze these district fraud rates for Karnataka GIA: Kalaburagi (67%), Bidar (67%), Raichur (64%), Belagavi (40%). Provide a 1-sentence predictive warning and 1-sentence tactical recommendation for field deployment.`;
-        const response = await model.generateContent(prompt);
-        setAiAnalysis(response.response.text());
-      } catch (e) {
-        console.error("AI Heatmap analysis failed", e);
-        setAiAnalysis("Spatio-temporal analysis indicates high-risk saturation in the Northern Corridor. Recommend immediate cross-district task force mobilization for Belagavi and Kalaburagi segments.");
-      }
+      const prompt = `Act as a geospatial fraud expert. Analyze these district fraud rates for Karnataka GIA: Kalaburagi (67%), Bidar (67%), Raichur (64%), Belagavi (40%). Provide a 1-sentence predictive warning and 1-sentence tactical recommendation for field deployment.`;
+      const fallback = "Spatio-temporal analysis indicates high-risk saturation in the Northern Corridor. Recommend immediate cross-district task force mobilization for Belagavi and Kalaburagi segments.";
+      
+      const insight = await getAiResponse(prompt, fallback, "heatmap_analysis");
+      setAiAnalysis(insight);
     }, 2000);
   }, []);
 

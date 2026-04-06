@@ -4,9 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { Brain, TrendingUp, Zap, Target, Check, Sparkles } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from "recharts";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { getAiResponse } from "@/lib/aiService";
 
 const performanceData = [
   { name: "Week 1", score: 65, efficiency: 40 },
@@ -28,21 +26,11 @@ export default function SchemeOptimizer() {
 
   useEffect(() => {
     async function getStrategy() {
-      if (!GEMINI_API_KEY) {
-        setAiSummary("AI Strategy Engine offline. Please provide Gemini API Key.");
-        return;
-      }
-      try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
         const prompt = `Act as an AI Scheme Optimization engine. Based on these metrics: ${JSON.stringify(schemeDistribution)}, recommend a strategic reallocation of funds in 2 sentences. Name the specific schemes you are moving budget from and to.`;
-        const response = await model.generateContent(prompt);
-        setAiSummary(response.response.text());
-      } catch (e) {
-        console.error("AI Generation failed", e);
         const fallback = "AI Analysis suggests reallocating 15% of surplus budget from NREGA and PMFBY due to low baseline optimization scores (45-65%) and injecting it into Ujjwala networks to maximize their high 90% active utilization threshold.";
-        setAiSummary(fallback);
-      }
+        
+        const insight = await getAiResponse(prompt, fallback, "scheme_optimizer_strategy");
+        setAiSummary(insight);
     }
     getStrategy();
   }, []);

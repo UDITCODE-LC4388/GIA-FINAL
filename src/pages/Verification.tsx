@@ -6,11 +6,10 @@ import { BeneficiaryCard } from "@/components/ui/BeneficiaryCard";
 import { AnomalyItem } from "@/components/ui/AnomalyItem";
 import { FraudRadar } from "@/components/charts/FraudRadar";
 import { jsPDF } from "jspdf";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAiResponse } from "@/lib/aiService";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 const getMockResult = (id: string) => {
   // User specialized overrides
@@ -145,30 +144,20 @@ export default function Verification() {
         time: new Date().toLocaleTimeString(),
       }, ...prev].slice(0, 5));
 
-      if (GEMINI_API_KEY) {
-        setIsAiLoading(true);
-        try {
-          const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-          // Using gemini-2.0-flash based on the available models for this API key tier
-          const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-          const prompt = `You are a fraud investigator for GIA-Shield. Analyze this beneficiary profile and output a 2-sentence direct summary of their fraud signature and why they are ${result.verdict}. Metrics - Income Risk: ${result.fraudDimensions.incomeRisk}/100, Identity Risk: ${result.fraudDimensions.identityRisk}/100, Scheme History Risk: ${result.fraudDimensions.schemeHistoryRisk}/100. Anomalies: ${result.anomalies.map((a: any) => a.title).join(", ")}. Be formal and direct. Do not use generic greetings.`;
-          const aiResponse = await model.generateContent(prompt);
-          setAiSummary(aiResponse.response.text());
-        } catch (error: any) {
-          console.error("AI Generation failed", error);
-          // Core Local AI Engine Fallback - Guarantees 100% uptime regardless of API Key quota
-          let fallbackText = "";
-          if (result.verdict === "ELIGIBLE") {
-             fallbackText = "AI analysis confirms all demographic and financial consistency checks align perfectly with official scheme protocols. No synthetic identity markers or duplicate cross-scheme fraud patterns were detected during the cross-referencing phase.";
-          } else {
-             const primaryRisk = result.fraudDimensions.identityRisk > result.fraudDimensions.incomeRisk ? 'identity fabrication' : 'income discrepancy';
-             fallbackText = `AI signature analysis flagged elevated probability of fraud primarily driven by ${primaryRisk} indicators. The structural anomalies mapped across interconnected state databases strongly deviate from secure beneficiary profiles, warranting an immediate manual compliance audit.`;
-          }
-          setAiSummary(fallbackText);
-        } finally {
-          setIsAiLoading(false);
-        }
+      setIsAiLoading(true);
+      const prompt = `You are a fraud investigator for GIA-Shield. Analyze this beneficiary profile and output a 2-sentence direct summary of their fraud signature and why they are ${result.verdict}. Metrics - Income Risk: ${result.fraudDimensions.incomeRisk}/100, Identity Risk: ${result.fraudDimensions.identityRisk}/100, Scheme History Risk: ${result.fraudDimensions.schemeHistoryRisk}/100. Anomalies: ${result.anomalies.map((a: any) => a.title).join(", ")}. Be formal and direct. Do not use generic greetings.`;
+      
+      let fallbackText = "";
+      if (result.verdict === "ELIGIBLE") {
+          fallbackText = "AI analysis confirms all demographic and financial consistency checks align perfectly with official scheme protocols. No synthetic identity markers or duplicate cross-scheme fraud patterns were detected during the cross-referencing phase.";
+      } else {
+          const primaryRisk = result.fraudDimensions.identityRisk > result.fraudDimensions.incomeRisk ? 'identity fabrication' : 'income discrepancy';
+          fallbackText = `AI signature analysis flagged elevated probability of fraud primarily driven by ${primaryRisk} indicators. The structural anomalies mapped across interconnected state databases strongly deviate from secure beneficiary profiles, warranting an immediate manual compliance audit.`;
       }
+
+      const insight = await getAiResponse(prompt, fallbackText, `verify_${rawAadhaar}`);
+      setAiSummary(insight);
+      setIsAiLoading(false);
     }, steps.length * 850);
   };
 

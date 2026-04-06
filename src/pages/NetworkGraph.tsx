@@ -4,9 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { MetricCard } from "@/components/ui/MetricCard";
 import { FraudNetwork } from "@/components/charts/FraudNetwork";
 import { Users, Link2, Network as NetworkIcon, Sparkles } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+import { getAiResponse } from "@/lib/aiService";
 
 const nodeTypes = [
   { label: "Individual", color: "#1B2A4A" },
@@ -20,24 +18,13 @@ export default function NetworkGraph() {
   const [isAiLoading, setIsAiLoading] = useState(false);
 
   const handleGenerateReport = async () => {
-    if (!GEMINI_API_KEY) {
-      setAiSummary("AI insights unavailable. Please configure the Gemini API key.");
-      return;
-    }
-    
     setIsAiLoading(true);
-    try {
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-      const prompt = `Act as an intelligence analyst investigating fraud syndicates. Generate a 2-sentence tactical 'Syndicate Dossier' on the Belagavi Cluster based on these stats: 18 suspicious clusters, 99 unique beneficiaries, 142 cross-scheme links mapping shared addresses and devices. Describe their coordination method and recommend an intervention strategy. Exclude markdown asterisks and generic greetings.`;
-      const response = await model.generateContent(prompt);
-      setAiSummary(response.response.text());
-    } catch (error: any) {
-      console.error(error);
-      setAiSummary("Syndicate Analysis shows high probability of coordinated document fabrication orchestrated across an 18-cluster network in the Belagavi sector. Recommend targeted physical audits and network teardowns on the 99 connected beneficiaries sharing identical residential addresses and device signatures.");
-    } finally {
-      setIsAiLoading(false);
-    }
+    const prompt = `Act as an intelligence analyst investigating fraud syndicates. Generate a 2-sentence tactical 'Syndicate Dossier' on the Belagavi Cluster based on these stats: 18 suspicious clusters, 99 unique beneficiaries, 142 cross-scheme links mapping shared addresses and devices. Describe their coordination method and recommend an intervention strategy. Exclude markdown asterisks and generic greetings.`;
+    const fallback = "Syndicate Analysis shows high probability of coordinated document fabrication orchestrated across an 18-cluster network in the Belagavi sector. Recommend targeted physical audits and network teardowns on the 99 connected beneficiaries sharing identical residential addresses and device signatures.";
+    
+    const insight = await getAiResponse(prompt, fallback, "network_graph_report");
+    setAiSummary(insight);
+    setIsAiLoading(false);
   };
 
   return (

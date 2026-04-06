@@ -6,7 +6,7 @@ import { MetricCard } from "@/components/ui/MetricCard";
 import { RiskBadge } from "@/components/ui/RiskBadge";
 import { DistributionDonut } from "@/components/charts/DistributionDonut";
 import { TrendChart } from "@/components/charts/TrendChart";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getAiResponse } from "@/lib/aiService";
 
 type RiskLevel = "Low" | "Medium" | "High" | "Critical" | "ELIGIBLE" | "FLAGGED" | "CRITICAL";
 
@@ -19,7 +19,6 @@ interface LiveFeedItem {
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -56,20 +55,11 @@ export default function Dashboard() {
     
     // Core AI Global Sentinel - Runs once on mount
     setTimeout(async () => {
-      if (!GEMINI_API_KEY) {
-        setAiThreat("Statewide AI Threat Level scanning offline. Please provide Gemini API Key.");
-        return;
-      }
-      try {
-          const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-          const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-          const prompt = `Act as an automated government threat detection system. Write a 1-sentence threat summary based on today's verification stats: 115 verifications, 23 flagged high risk, 92 eligible. Point out a hypothetical targeted vulnerability. Be direct and concise.`;
-          const response = await model.generateContent(prompt);
-          setAiThreat(response.response.text());
-      } catch (error: any) {
-          console.error(error);
-          setAiThreat("ELEVATED THREAT DETECTED: 23 high-risk anomalies flagged within the recent 115 cohort. Recommend immediate field audits across rapidly saturating southern district clusters.");
-      }
+      const prompt = `Act as an automated government threat detection system. Write a 1-sentence threat summary based on today's verification stats: 115 verifications, 23 flagged high risk, 92 eligible. Point out a hypothetical targeted vulnerability. Be direct and concise.`;
+      const fallback = "ELEVATED THREAT DETECTED: 23 high-risk anomalies flagged within the recent 115 cohort. Recommend immediate field audits across rapidly saturating southern district clusters.";
+      
+      const insight = await getAiResponse(prompt, fallback, "dashboard_threat");
+      setAiThreat(insight);
     }, 2000);
 
     const interval = setInterval(loadWarRoom, 15000);
