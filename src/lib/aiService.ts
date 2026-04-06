@@ -13,6 +13,23 @@ const aiCache: Record<string, string> = {};
 let last429Time = 0;
 const COOLDOWN_DURATION = 60000; // 60 seconds cooldown to be safe
 
+const requestQueue: (() => Promise<void>)[] = [];
+let isProcessingQueue = false;
+
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return;
+  isProcessingQueue = true;
+  while (requestQueue.length > 0) {
+    const task = requestQueue.shift();
+    if (task) {
+      await task();
+      // Delay between tasks to respect rate limits (Gemini free tier: 15 RPM)
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+  isProcessingQueue = false;
+}
+
 /**
  * Fetches AI response with automatic fallback and caching.
  * @param prompt The prompt to send to Gemini
@@ -37,33 +54,39 @@ export async function getAiResponse(
     return fallback;
   }
 
-  // 3. Check API Key
-  if (!GEMINI_API_KEY) {
-    console.warn("GIA Shield: Gemini API Key missing.");
-    return fallback;
-  }
+  return new Promise((resolve) => {
+    requestQueue.push(async () => {
+      // 3. Check API Key
+      if (!GEMINI_API_KEY) {
+        resolve(fallback);
+        return;
+      }
 
-  try {
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-    
-    // Store in cache
-    aiCache[key] = text;
-    return text;
-  } catch (error: any) {
-    const errorString = String(error);
-    
-    if (errorString.includes("429") || error?.status === 429) {
-      last429Time = Date.now();
-      console.warn("GIA Shield: Gemini API Rate Limit (429) detected. Throttling for 60s.");
-    } else {
-      console.warn("GIA Shield: AI Insight engine encountered an error.", error);
-    }
-    
-    return fallback;
-  }
+      try {
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        // Using 1.5-flash which has better rate limits on free tier
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        
+        // Store in cache
+        aiCache[key] = text;
+        resolve(text);
+      } catch (error: any) {
+        const errorString = String(error);
+        
+        if (errorString.includes("429") || error?.status === 429) {
+          last429Time = Date.now();
+          // Silently handle 429 by returning fallback without console.warn
+        } else {
+          console.warn("GIA Shield: AI engine encountered an error.", error);
+        }
+        
+        resolve(fallback);
+      }
+    });
+    processQueue();
+  });
 }

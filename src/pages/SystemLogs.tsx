@@ -11,7 +11,7 @@ interface SystemLog {
   officer_id: string;
   district: string;
   severity: string;
-  created_at: string;
+  timestamp: string;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -27,7 +27,7 @@ export default function SystemLogs() {
       try {
         setLoading(true);
         const res = await fetch(
-          `${SUPABASE_URL}/rest/v1/system_logs?order=created_at.desc&limit=25&select=*`,
+          `${SUPABASE_URL}/rest/v1/system_logs?order=timestamp.desc&limit=25&select=*`,
           { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }}
         );
         
@@ -53,7 +53,7 @@ export default function SystemLogs() {
             officer_id: `KA-2024-${(1000 + i)}`,
             district: ['Belagavi', 'Kalaburagi', 'Raichur', 'Bengaluru'][i % 4],
             severity: i % 10 === 0 ? 'CRITICAL' : i % 5 === 0 ? 'WARN' : 'INFO',
-            created_at: new Date(Date.now() - (i * 120000)).toISOString()
+            timestamp: new Date(Date.now() - (i * 120000)).toISOString()
           }));
         });
         setLoading(false);
@@ -118,7 +118,7 @@ export default function SystemLogs() {
                                 : 'text-emerald-400';
                return (
                   <div key={log.id} className="group hover:bg-white/5 p-2 rounded transition-colors border-b border-white/5 last:border-b-0 flex gap-4">
-                     <span className="text-white/30 whitespace-nowrap">[{new Date(log.created_at).toLocaleTimeString()}]</span>
+                     <span className="text-white/30 whitespace-nowrap">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                      <span className={`${colorClass} font-black w-24 shrink-0`}>{log.event_type}</span>
                      <span className="text-white/70 flex-1">{log.description}</span>
                      <span className="text-white/30 shrink-0 uppercase tracking-tighter">OFF_ID: {log.officer_id}</span>
