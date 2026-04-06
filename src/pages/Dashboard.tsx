@@ -33,10 +33,15 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadWarRoom() {
       try {
+        if (!SUPABASE_URL || SUPABASE_URL === 'undefined') {
+          throw new Error("Supabase URL not configured");
+        }
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/verifications?order=verified_at.desc&limit=10&select=*`,
-          { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }}
+          { headers: { "apikey": SUPABASE_KEY || '', "Authorization": `Bearer ${SUPABASE_KEY || ''}` }}
         );
+        if (!res.ok) throw new Error("Fetch failed");
+        
         const data = await res.json();
         setFeed(data);
 

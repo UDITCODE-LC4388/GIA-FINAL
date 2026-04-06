@@ -25,12 +25,22 @@ export default function AuditCertificates() {
     async function fetchCerts() {
       try {
         setLoading(true);
+        if (!SUPABASE_URL || SUPABASE_URL === 'undefined') {
+          throw new Error("Supabase URL not configured");
+        }
         // Switching to beneficiaries endpoint to pull all 100+ raw datasets into the global certificate pool
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/beneficiaries?select=*`,
-          { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }}
+          { headers: { "apikey": SUPABASE_KEY || '', "Authorization": `Bearer ${SUPABASE_KEY || ''}` }}
         );
-        const data = await res.json();
+        if (!res.ok) throw new Error("Fetch failed");
+        
+        let data = [];
+        try {
+          data = await res.json();
+        } catch(e) {
+          throw new Error("Invalid format received");
+        }
         
         if (data && data.length > 0) {
           const mappedCerts: AuditRecord[] = data.map((b: any, i: number) => ({

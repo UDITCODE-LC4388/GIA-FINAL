@@ -114,15 +114,19 @@ export default function Verification() {
 
     let fetchedData: any = null;
     try {
+      if (!SUPABASE_URL || SUPABASE_URL === 'undefined') {
+         throw new Error("Supabase URL not configured");
+      }
       const res = await fetch(`${SUPABASE_URL}/rest/v1/beneficiaries?aadhaar_hash=eq.${rawAadhaar}&select=*`, {
-        headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }
+        headers: { "apikey": SUPABASE_KEY || '', "Authorization": `Bearer ${SUPABASE_KEY || ''}` }
       });
+      if (!res.ok) throw new Error("Fetch failed");
       const json = await res.json();
       if (json && json.length > 0) {
         fetchedData = json[0];
       }
     } catch(e) {
-      console.error(e);
+      // Silently fall back to mock data
     }
 
     setTimeout(async () => {

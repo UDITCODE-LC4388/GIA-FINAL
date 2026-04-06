@@ -26,9 +26,12 @@ export default function SystemLogs() {
     async function fetchLogs() {
       try {
         setLoading(true);
+        if (!SUPABASE_URL || SUPABASE_URL === 'undefined') {
+          throw new Error("Supabase URL not configured");
+        }
         const res = await fetch(
           `${SUPABASE_URL}/rest/v1/system_logs?order=timestamp.desc&limit=25&select=*`,
-          { headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` }}
+          { headers: { "apikey": SUPABASE_KEY || '', "Authorization": `Bearer ${SUPABASE_KEY || ''}` }}
         );
         
         if (!res.ok) {
