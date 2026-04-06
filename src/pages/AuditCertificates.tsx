@@ -55,7 +55,6 @@ export default function AuditCertificates() {
           setCerts([]);
         }
       } catch (e) {
-        console.error(e);
         setCerts([]);
       } finally {
         setLoading(false);
