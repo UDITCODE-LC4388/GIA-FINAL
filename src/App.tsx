@@ -11,6 +11,7 @@ import SchemeOptimizer from "./pages/SchemeOptimizer";
 import AuditCertificates from "./pages/AuditCertificates";
 import SystemLogs from "./pages/SystemLogs";
 import NotFound from "./pages/NotFound";
+import AIOfficerCopilot from "./components/AIOfficerCopilot";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/logs" element={<SystemLogs />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <AIOfficerCopilot />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

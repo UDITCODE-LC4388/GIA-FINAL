@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBQCcKOWWnlEBDJHbcgK_LgC8C3i5aecWk";
 
 /**
  * Robust AI Service to handle Gemini API calls with caching and rate-limiting.
@@ -64,7 +64,7 @@ export async function getAiResponse(
 
       try {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        // Using 1.5-flash which has better rate limits on free tier
+        // Using stable 1.5-flash for maximum uptime
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
         const result = await model.generateContent(prompt);
